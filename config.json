@@ -1,0 +1,10 @@
+{
+  "sources": {
+    "primary": "/Volumes/Media/iTunes Purchased/iTunes Media/Music",
+    "secondary": "/Volumes/Media/MP3"
+  },
+  "target": "/Volumes/OpenSwim",
+  "capacity_mb": 4000,
+  "format_preference": "aac",
+  "music_extensions": [".mp3", ".m4a", ".aac"]
+}
