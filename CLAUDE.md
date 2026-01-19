@@ -129,6 +129,9 @@ Already installed:
 - Single search field at a time (no combined filters)
 - First-ever library scan is slow over NAS (~2-3 min for 16k files); cached startups are instant
 
+## Future Enhancements
+- [ ] **Phase 9: Native AI Playlist Generation in CLI** - Add Anthropic API integration directly into the CLI so natural language playlist generation works without Claude Code. Requires `anthropic` package and API key configuration.
+
 ## GitHub Repository
 https://github.com/ElectricMixer/shokz-transfer-utility
 
