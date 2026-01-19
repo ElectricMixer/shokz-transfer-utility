@@ -199,7 +199,37 @@ rich>=13.0.0
 
 ---
 
+## Completed (as of 2026-01-18)
+- [x] All phases 1-6 implemented and tested
+- [x] Archive feature added (save Shokz contents to JSON)
+- [x] Library caching added (instant startup after first scan)
+- [x] 15,881 tracks indexed from NAS
+
 ## Notes
 - BPM filtering deferred to future version
-- Playlist persistence deferred to future version
 - Smart sync (instead of full replace) deferred to future version
+
+---
+
+## Next Features (Planned)
+
+### Phase 7: Persistent Playlists
+**Status**: Ready to implement
+
+Auto-save playlist state so users can resume after exiting.
+
+See CLAUDE.md for full implementation details.
+
+### Phase 8: AI-Powered Playlist Generation
+**Status**: Ready to implement (after Phase 7)
+
+Create a `/shokz` skill for Claude Code where Claude acts as an AI DJ:
+- Understands your entire music library (artists, albums, genres)
+- Accepts natural language requests: "mellow acoustic for a long flight", "80s workout mix"
+- Curates intelligent playlists based on vibe, mood, activity
+- Explains choices and refines based on feedback
+- No external APIs or ML models needed - Claude IS the AI
+
+Example: "surprise me with the best of my library" → Claude analyzes your collection and builds a personalized mix
+
+See CLAUDE.md for full implementation details.

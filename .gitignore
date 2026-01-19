@@ -24,3 +24,9 @@ build/
 
 # Local config overrides (if user wants to keep a local version)
 config.local.json
+
+# User-specific data (not part of source)
+library_cache.json
+playlist_session.json
+archives/
+logs/
