@@ -4,9 +4,9 @@
 A command-line Python utility to transfer music from a NAS drive to Shokz OpenSwim headphones. The user cannot code but is familiar with Python basics.
 
 ## Current Status
-**Phase: Testing Complete - Ready for Use**
+**Phase: All Features Complete - Ready for Use**
 
-All core features implemented and tested. Run with:
+All core features plus AI playlist generation implemented. Run with:
 ```bash
 cd "/Users/chris/Documents/Dev Projects/Shokz Transfer Utility"
 python3 -m shokz_transfer
@@ -52,10 +52,15 @@ The utility only: reads from NAS, copies to Shokz, deletes from Shokz.
 - **Archive**: Saves JSON snapshot of Shokz contents with timestamps
 - **Progress bars**: Shows progress during scan and transfer
 - **Library Cache**: Saves scanned library to `library_cache.json` for instant startup
+- **Persistent Playlists**: Auto-saves playlist to `playlist_session.json`, resume on restart
+- **AI Playlist Generation**: Use `/shokz` skill for natural language playlist creation
 
 ## Project Structure
 ```
 shokz-transfer-utility/
+├── .claude/
+│   └── commands/
+│       └── shokz.md     # AI playlist skill for Claude Code
 ├── shokz_transfer/
 │   ├── __init__.py
 │   ├── __main__.py      # Entry point for python -m
@@ -63,11 +68,13 @@ shokz-transfer-utility/
 │   ├── config.py        # Load/save config.json
 │   ├── indexer.py       # Scan NAS, extract metadata, dedupe
 │   ├── search.py        # Filter by title/album/artist/genre
-│   ├── playlist.py      # Playlist management with size tracking
+│   ├── playlist.py      # Playlist management with session persistence
 │   ├── transfer.py      # Copy to Shokz, archive contents
+│   ├── claude_api.py    # API helpers for AI playlist generation
 │   └── ui.py            # Rich tables, selection parsing, prompts
 ├── archives/            # Shokz content snapshots (auto-created)
 ├── library_cache.json   # Cached library index (auto-created)
+├── playlist_session.json # Saved playlist (auto-created)
 ├── config.json          # User configuration
 ├── requirements.txt     # mutagen, rich
 ├── PLAN.md
@@ -98,8 +105,8 @@ shokz-transfer-utility/
 - [x] Phase 6: Main Menu & Flow
 - [x] Archive feature (bonus)
 - [x] Library caching for fast startup
-- [ ] Phase 7: Persistent Playlists (next)
-- [ ] Phase 8: AI Playlist Generation via Claude Code Skill (next)
+- [x] Phase 7: Persistent Playlists
+- [x] Phase 8: AI Playlist Generation via Claude Code Skill
 
 ## Dependencies
 Already installed:
@@ -118,7 +125,6 @@ Already installed:
 
 ## Known Limitations
 - No BPM filtering
-- No saved playlists (only archives for reference)
 - Full replacement only (no smart sync)
 - Single search field at a time (no combined filters)
 - First-ever library scan is slow over NAS (~2-3 min for 16k files); cached startups are instant
@@ -128,154 +134,37 @@ https://github.com/ElectricMixer/shokz-transfer-utility
 
 ---
 
-## Planned Features
+## AI Playlist Generation (/shokz skill)
 
-### Phase 7: Persistent Playlists (Priority: High)
+Use the `/shokz` command in Claude Code to build playlists with natural language:
 
-**Problem**: If user exits accidentally or needs to come back later, they lose their playlist progress.
+```
+/shokz high energy music for working out
+/shokz chill acoustic for relaxing
+/shokz 80s classics mix
+/shokz surprise me with your picks
+```
 
-**Solution**: Auto-save playlist to `playlist_session.json` on every change.
+Claude will:
+1. Load your library and analyze your collection
+2. Search and curate tracks matching your request
+3. **Infer genres from artist names** when metadata is missing (e.g., knows The Beatles = Rock)
+4. Present the playlist with explanations
+5. Refine based on feedback
+6. Save to `playlist_session.json` for transfer via CLI
 
-**Implementation**:
-1. Add to `playlist.py`:
-   - `save_playlist_session(playlist)` - Save current playlist to JSON
-   - `load_playlist_session()` - Load saved playlist
-   - `playlist_session_exists()` - Check if saved session exists
-
-2. Modify `main.py` startup:
-   - After library loads, check for existing playlist session
-   - If found, offer menu: "Resume playlist (X tracks, Y MB)" or "Start fresh"
-
-3. Auto-save triggers:
-   - After `playlist.add_many()`
-   - After `playlist.remove_many()`
-   - After `playlist.clear()`
-
-4. Clear session file after successful transfer
-
-**Files to modify**: `playlist.py`, `main.py`
-
-**Pattern**: Same as library cache implementation
+After Claude saves the playlist, run the CLI and select "Transfer Playlist to Shokz".
 
 ---
 
-### Phase 8: AI-Powered Playlist Generation via Claude Code Skill (Priority: High)
+## Persistent Playlists
 
-**Problem**: Manual CLI workflow is tedious. User wants to describe a vibe/mood and get a smart playlist.
+Playlists are automatically saved to `playlist_session.json`:
+- **Auto-saves** after adding/removing tracks
+- **Resume on restart** - prompted to resume or start fresh
+- **Cleared after transfer** - fresh start for next playlist
 
-**Solution**: Create a Claude Code skill where Claude acts as an AI DJ that understands your music library.
-
-**Why this approach**:
-- Claude IS the AI - no need for separate ML models or embeddings
-- Claude can understand nuanced requests: "upbeat but not too aggressive", "90s nostalgia", "songs for a rainy day"
-- Claude can explain its choices and refine based on feedback
-- No API costs beyond normal Claude Code usage
-
-**How it works**:
-- Skill file teaches Claude about the utility's Python API
-- Claude loads your library and understands what artists/albums/genres you have
-- User describes what they want in natural language
-- Claude searches, curates, and builds playlist conversationally
-- Claude explains why it picked each song
-
-**Implementation**:
-
-1. Create skill definition file: `.claude/commands/shokz.md`
-   ```markdown
-   # /shokz - Shokz Music Transfer Assistant
-
-   You help the user build playlists for their Shokz OpenSwim headphones.
-
-   ## Available Python API
-
-   Load library (always do this first):
-   ```python
-   from shokz_transfer.config import load_config
-   from shokz_transfer.indexer import load_cache
-   config = load_config()
-   library = load_cache()  # Returns list of Track objects
-   ```
-
-   Search tracks:
-   ```python
-   from shokz_transfer.search import search_tracks, SearchField
-   # SearchField options: TITLE, ARTIST, ALBUM, GENRE
-   results = search_tracks(library, "query", SearchField.ARTIST)
-   ```
-
-   Track object properties:
-   - track.title, track.artist, track.album, track.genre
-   - track.size_mb, track.path, track.format
-
-   ## Workflow
-   1. Load library from cache
-   2. Search based on user's description
-   3. Show curated results with total size
-   4. User approves or refines
-   5. Save to playlist session for transfer via CLI
-   ```
-
-2. Create helper script: `shokz_transfer/claude_api.py`
-   - `get_library_summary()` - Returns unique artists, albums, genres
-   - `search_and_format(query, field)` - Search and return formatted results
-   - `save_playlist_for_transfer(tracks)` - Save selected tracks to session
-
-**Example interactions**:
-
-```
-User: /shokz I want upbeat songs for running, mix of 80s rock and modern pop
-
-Claude: [Loads library, analyzes your collection]
-        Based on your library, here's a 28-song running playlist (298 MB):
-
-        High Energy 80s (12 songs):
-        - Born to Run - Bruce Springsteen (perfect running cadence)
-        - Running on Empty - Jackson Browne
-        - Take On Me - A-ha
-        ...
-
-        Modern Energy (10 songs):
-        - Shake It Off - Taylor Swift
-        - Uptown Funk - Bruno Mars
-        ...
-
-        Want me to save this? Or adjust - more 80s? Different vibe?
-```
-
-```
-User: /shokz something mellow for a long flight, acoustic and chill
-
-Claude: Here's a 3-hour calm playlist (387 MB):
-
-        Acoustic/Folk:
-        - Graceland - Paul Simon
-        - Fire and Rain - James Taylor
-        ...
-
-        I noticed you have a lot of Bob Dylan - want me to add some?
-```
-
-```
-User: /shokz surprise me - you pick based on what's in my library
-
-Claude: Looking at your collection, you have great taste in classic rock
-        and singer-songwriters. Here's a "Best Of Your Library" mix...
-```
-
-**Key benefit**: Claude understands context, can refine, and explains choices - true AI curation.
-
-**Files to create**: `.claude/commands/shokz.md`, `shokz_transfer/claude_api.py`
-**Files to modify**: None (additive only)
-
----
-
-## Implementation Order
-
-1. **Phase 7 first** - Persistent playlists (30 min)
-   - Same pattern as library cache
-   - Immediate usability improvement
-   - Required for Phase 8 (skill saves playlist for later transfer)
-
-2. **Phase 8 second** - Claude Code skill (1-2 hours)
-   - Depends on Phase 7 for playlist persistence
-   - Transforms UX completely
+This means you can:
+- Build a playlist over multiple sessions
+- Exit accidentally without losing progress
+- Use `/shokz` skill to build playlist, then transfer via CLI later

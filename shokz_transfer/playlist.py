@@ -1,9 +1,139 @@
 """Playlist management for track selection."""
 
+import json
 from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 from .indexer import Track
+
+
+# Session file for playlist persistence
+SESSION_FILENAME = "playlist_session.json"
+
+
+def get_session_path() -> Path:
+    """Get the path to the playlist session file."""
+    return Path(__file__).parent.parent / SESSION_FILENAME
+
+
+def session_exists() -> bool:
+    """Check if a saved playlist session exists."""
+    return get_session_path().exists()
+
+
+def get_session_info() -> Optional[dict]:
+    """Get session metadata (date, track count, size) without loading all tracks.
+
+    Returns None if session doesn't exist or is invalid.
+    """
+    session_path = get_session_path()
+    if not session_path.exists():
+        return None
+
+    try:
+        with open(session_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return {
+                "saved_at": data.get("saved_at", "Unknown"),
+                "track_count": data.get("track_count", 0),
+                "total_size_mb": data.get("total_size_mb", 0),
+            }
+    except (json.JSONDecodeError, KeyError):
+        return None
+
+
+def save_session(playlist: "Playlist") -> bool:
+    """Save the current playlist to a session file.
+
+    Args:
+        playlist: The playlist to save.
+
+    Returns:
+        True if saved successfully, False otherwise.
+    """
+    session_path = get_session_path()
+
+    # Convert tracks to JSON-serializable format
+    tracks_data = []
+    for track in playlist._tracks:
+        tracks_data.append({
+            "path": str(track.path),
+            "title": track.title,
+            "artist": track.artist,
+            "album": track.album,
+            "genre": track.genre,
+            "size_bytes": track.size_bytes,
+            "format": track.format,
+        })
+
+    session_data = {
+        "saved_at": datetime.now().isoformat(),
+        "track_count": playlist.count,
+        "total_size_mb": round(playlist.total_size_mb, 2),
+        "capacity_mb": playlist.capacity_mb,
+        "tracks": tracks_data,
+    }
+
+    try:
+        with open(session_path, "w", encoding="utf-8") as f:
+            json.dump(session_data, f, indent=2)
+        return True
+    except (IOError, OSError):
+        return False
+
+
+def load_session() -> Optional["Playlist"]:
+    """Load a saved playlist session.
+
+    Returns None if session doesn't exist or is invalid.
+    """
+    session_path = get_session_path()
+    if not session_path.exists():
+        return None
+
+    try:
+        with open(session_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        # Reconstruct playlist
+        capacity = data.get("capacity_mb", 4000)
+        playlist = Playlist(capacity_mb=capacity)
+
+        for track_dict in data.get("tracks", []):
+            track = Track(
+                path=Path(track_dict["path"]),
+                title=track_dict["title"],
+                artist=track_dict["artist"],
+                album=track_dict["album"],
+                genre=track_dict["genre"],
+                size_bytes=track_dict["size_bytes"],
+                format=track_dict["format"],
+            )
+            playlist._tracks.append(track)
+
+        return playlist
+
+    except (json.JSONDecodeError, KeyError, TypeError):
+        return None
+
+
+def clear_session() -> bool:
+    """Delete the session file after successful transfer.
+
+    Returns:
+        True if deleted or didn't exist, False on error.
+    """
+    session_path = get_session_path()
+    if not session_path.exists():
+        return True
+
+    try:
+        session_path.unlink()
+        return True
+    except (IOError, OSError):
+        return False
 
 
 @dataclass
